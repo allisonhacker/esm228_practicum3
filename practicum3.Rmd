@@ -18,14 +18,15 @@ library(kableExtra)
 library(future.apply)
 ```
 
-## Existing knowledge about outcome data, descriptives
+## Descriptives and outcomes
 
-• population size = 512
-• Treatment = 384
-• Control = 128
-• baseline WQI is random uniform [0.38, 8.21]
-• estimated rate of change (not absolute change) from baseline WQI = 1.1 +/- 0.1 (sd)
-• treatment effect = 
+• Population size = 1000
+• Initial sample size = 500
+• Treatment = 375
+• Control = 125
+• baseline yield (tons/hectare) is random uniform [0.38, 8.21]
+• estimated rate of change (not absolute change) from baseline yield = 0.8 +/- 0.4 (sd)
+• treatment effect = 0.15
 • estimators: difference-in-means and difference-in-differences
 
 ##declare_population()
@@ -34,7 +35,7 @@ set.seed(228)
 population <- declare_population(
   villages = add_level(N=1000, 
     yield=rnorm(n=N, mean=1.75, sd = 0.6),
-    u=rnorm(n=N, mean=1, sd=0.5))
+    u=rnorm(n=N, mean=0.8, sd=0.4))
 )
 ```
 
@@ -50,7 +51,7 @@ hist(pop[,2], xlab="Baseline Rice Yield (t/ha)",
 potential_outcomes <- 
   declare_potential_outcomes(
     Y_D_0=yield + u,
-    Y_D_1=yield + u + 1.5)
+    Y_D_1=yield + u + 0.15)
 ```
 
 ##Potential outcomes descriptives
@@ -61,14 +62,14 @@ po <- potential_outcomes(pop)
 
 ##declare_sampling()
 ```{r sample, echo=TRUE}
-sampling <- declare_sampling(n=300)
+sampling <- declare_sampling(n=500)
 sam <- sampling(po)
 # kable(sam[1:5,c(1:2,4:6)], row.names = FALSE, digits = 1)
 ```
 
 ##declare_assignment()
 ```{r assign, echo=TRUE}
-assigning <- declare_assignment(m = nrow(sam)*(1/2),
+assigning <- declare_assignment(m = nrow(sam)*(3/4),
                   assignment_variable="D")
 assigned <- assigning(sam)
 # kable(assigned[1:5,c(1:2,4:5,7:8)], digits = 1)
@@ -89,7 +90,7 @@ revealing <- declare_reveal(assignment_variables=D)
 
 ##declare_estimand()
 ```{r estimand, echo=TRUE}
-estimand <- declare_estimand(ATE = 1.5)
+estimand <- declare_estimand(ATE = 0.15)
 # estimand(po)
 ```
 
@@ -113,6 +114,59 @@ design <- population + potential_outcomes + sampling +
 ##diagnose_design()
 ```{r diagnosis, cache=TRUE}
 diagnosis <- diagnose_design(design, sims=1000)
+diagnosis$diagnosands_df[,c(1,3,5,9,11)] %>%
+  kable()
+```
+
+
+### Changing sample size
+```{r sample, echo=TRUE}
+sampling2 <- declare_sampling(n=360)
+sam2 <- sampling2(po)
+
+assigning2 <- declare_assignment(m = nrow(sam2)*(3/4),
+                  assignment_variable="D")
+
+dim <- declare_estimator(Y ~ D, estimand = estimand,  
+          model =  difference_in_means, label = "DIM")
+
+did <- declare_estimator(Y - yield ~ D, estimand = estimand,  
+          model =  difference_in_means, label = "DID")
+
+design2 <- population + potential_outcomes + sampling2 +
+          assigning2 + revealing + estimand + dim + did
+
+diagnosis <- diagnose_design(design2, sims=1000)
+diagnosis$diagnosands_df[,c(1,3,5,9,11)] %>%
+  kable()
+```
+
+### What is the smallest treatment effect you can detect with sample size of 400
+```{r sample, echo=TRUE}
+
+potential_outcomes2 <- 
+  declare_potential_outcomes(
+    Y_D_0= yield + u,
+    Y_D_1= yield + u - 0.165)
+
+po <- potential_outcomes2(pop)
+
+sampling3 <- declare_sampling(n=400)
+sam3 <- sampling3(po)
+
+assigning3 <- declare_assignment(m = nrow(sam3)*(3/4),
+                  assignment_variable="D")
+
+dim <- declare_estimator(Y ~ D, estimand = estimand,  
+          model =  difference_in_means, label = "DIM")
+
+did <- declare_estimator(Y - yield ~ D, estimand = estimand,  
+          model =  difference_in_means, label = "DID")
+
+design3 <- population + potential_outcomes2 + sampling3 +
+          assigning3 + revealing + estimand + dim + did
+
+diagnosis <- diagnose_design(design3, sims=1000)
 diagnosis$diagnosands_df[,c(1,3,5,9,11)] %>%
   kable()
 ```
