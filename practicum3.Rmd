@@ -5,31 +5,40 @@ date: "5/26/2020"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include=FALSE, warning=FALSE, message=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r load, echo=TRUE, warning=FALSE}
+```{r load, include=FALSE, warning=FALSE}
 library(DeclareDesign)
 library(truncnorm) #for truncated distribution
 library(knitr)
 library(ggplot2)
 library(kableExtra)
 library(future.apply)
+library(tidyverse)
+library(effsize)
 ```
 
 ## Descriptives and outcomes
 
 • Population size = 1000
+
 • Initial sample size = 500
+
 • Treatment = 375
+
 • Control = 125
+
 • baseline yield (tons/hectare) is random uniform [0.38, 8.21]
+
 • estimated rate of change (not absolute change) from baseline yield = 0.8 +/- 0.4 (sd)
+
 • treatment effect = 0.15
+
 • estimators: difference-in-means and difference-in-differences
 
-##declare_population()
+### Declare population
 ```{r population, echo=TRUE}
 set.seed(228)
 population <- declare_population(
@@ -39,14 +48,14 @@ population <- declare_population(
 )
 ```
 
-##Population descriptives
+### Population descriptives
 ```{r population-see, echo=TRUE, fig.height=5.5}
 pop <- population()
 hist(pop[,2], xlab="Baseline Rice Yield (t/ha)", 
      main="Baseline", cex=24)
 ```
 
-##declare_potential_outcomes()
+### Declare potential outcomes
 ```{r po, echo=TRUE}
 potential_outcomes <- 
   declare_potential_outcomes(
@@ -54,47 +63,47 @@ potential_outcomes <-
     Y_D_1=yield + u + 0.15)
 ```
 
-##Potential outcomes descriptives
+### Potential outcomes descriptives
 ```{r po-see, echo=TRUE}
 po <- potential_outcomes(pop)
-# kable(po[1:5,], digits=1)
+kable(po[1:5,], digits=1)
 ```
 
-##declare_sampling()
+### Declare sampling
 ```{r sample, echo=TRUE}
 sampling <- declare_sampling(n=500)
 sam <- sampling(po)
-# kable(sam[1:5,c(1:2,4:6)], row.names = FALSE, digits = 1)
+kable(sam[1:5,c(1:2,4:6)], row.names = FALSE, digits = 1)
 ```
 
-##declare_assignment()
+### Declare Assignment
 ```{r assign, echo=TRUE}
 assigning <- declare_assignment(m = nrow(sam)*(3/4),
                   assignment_variable="D")
 assigned <- assigning(sam)
-# kable(assigned[1:5,c(1:2,4:5,7:8)], digits = 1)
+kable(assigned[1:5,c(1:2,4:5,7:8)], digits = 1)
 ```
 
 
-## Assessing balance
+### Assessing balance
 ```{r violin, echo=FALSE, fig.height=6}
 ggplot(data=assigned, aes(x=as.factor(D), y=yield)) +
 geom_violin(aes(fill=as.factor(D), color=as.factor(D))) +
 theme_minimal(base_size = 24) + xlab("Assignment")
 ```
 
-##declare_reveal()
+### Declare reveal
 ```{r reveal, echo=TRUE}
 revealing <- declare_reveal(assignment_variables=D)
 ```
 
-##declare_estimand()
+### Declare estimand
 ```{r estimand, echo=TRUE}
 estimand <- declare_estimand(ATE = 0.15)
-# estimand(po)
+estimand(po)
 ```
 
-##declare_estimator()
+### Declare estimator
 ```{r estimator, echo=TRUE}
 dim <- declare_estimator(Y ~ D, estimand = estimand,  
           model =  difference_in_means, label = "DIM")
@@ -105,22 +114,21 @@ did <- declare_estimator(Y - yield ~ D,
 ```
 
 
-##declare_design()
+### Declare design
 ```{r design, echo=TRUE}
 design <- population + potential_outcomes + sampling +
           assigning + revealing + estimand + dim + did
 ```
 
-##diagnose_design()
+### Diagnose design
 ```{r diagnosis, cache=TRUE}
 diagnosis <- diagnose_design(design, sims=1000)
 diagnosis$diagnosands_df[,c(1,3,5,9,11)] %>%
   kable()
 ```
 
-
 ### Changing sample size
-```{r sample, echo=TRUE}
+```{r sample2, echo=TRUE}
 sampling2 <- declare_sampling(n=360)
 sam2 <- sampling2(po)
 
@@ -141,8 +149,51 @@ diagnosis$diagnosands_df[,c(1,3,5,9,11)] %>%
   kable()
 ```
 
+### Variance
+```{r, echo=FALSE}
+### variance of outcomes
+var(po$Y_D_1)
+mean(po$Y_D_1)
+sd(po$Y_D_1)
+
+var(sam$Y_D_1)
+mean(sam$Y_D_1)
+sd(sam$Y_D_1)
+
+var(sam2$Y_D_1)
+mean(sam2$Y_D_1)
+sd(sam2$Y_D_1)
+```
+
+### Test statistic
+```{r, echo=FALSE}
+po1 <- po %>%
+  select(villages, Y_D_0, Y_D_1) %>% 
+  pivot_longer(cols = starts_with("Y_D"), names_to = "treatment",values_to="outcome")
+
+po_aov <- aov(outcome ~ treatment, data = po1)
+summary(po_aov)
+cohen.d(po$Y_D_0, po$Y_D_1, paired = TRUE)
+
+samp <- sam %>%
+  select(villages, Y_D_0, Y_D_1) %>% 
+  pivot_longer(cols = starts_with("Y_D"), names_to = "treatment",values_to="outcome")
+
+sam_aov <- aov(outcome ~ treatment, data = samp)
+summary(sam_aov)
+cohen.d(sam$Y_D_0, sam$Y_D_1, paired = TRUE)
+
+samp2 <- sam2 %>%
+  select(villages, Y_D_0, Y_D_1) %>% 
+  pivot_longer(cols = starts_with("Y_D"), names_to = "treatment",values_to="outcome")
+
+sam2_aov <- aov(outcome ~ treatment, data = samp2)
+summary(sam2_aov)
+cohen.d(sam2$Y_D_0, sam2$Y_D_1)
+```
+
 ### What is the smallest treatment effect you can detect with sample size of 400
-```{r sample, echo=TRUE}
+```{r effsize, echo=TRUE}
 
 potential_outcomes2 <- 
   declare_potential_outcomes(
