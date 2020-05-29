@@ -1,8 +1,10 @@
 ---
-title: "Practicum 3"
+title: 'Practicum 3: Appendix'
 author: "Allison Hacker, Max Diamond, Isabelle Radis"
-date: "5/26/2020"
-output: html_document
+date: "5/29/2020"
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE, warning=FALSE, message=FALSE}
@@ -27,15 +29,15 @@ library(effsize)
 
 • Initial sample size = 500 (Treatment = 375, Control = 125)
 
-• Final sample size = 360 (Treatment = 375, Control = 125)
+• Final sample size = 360 (Treatment = 270, Control = 90)
 
-• baseline yield (tons/hectare) is random uniform [0.38, 8.21]
+• Baseline yield (tons/hectare) is random normal with a mean of 1.75 t/ha and a standard deviation of 0.6 t/ha
 
-• estimated rate of change (not absolute change) from baseline yield = 0.8 +/- 0.4 (sd)
+• Estimated rate of change (not absolute change) from baseline yield = 0.8 +/- 0.4 (sd)
 
-• treatment effect = 0.15
+• Treatment effect = 0.15
 
-• estimators: difference-in-means and difference-in-differences
+• Estimators: difference-in-means and difference-in-differences
 
 ### Declare population
 ```{r population, echo=TRUE}
@@ -48,7 +50,7 @@ population <- declare_population(
 ```
 
 ### Population descriptives
-```{r population-see, echo=TRUE, fig.height=5.5}
+```{r population-see, echo=TRUE, out.width = "70%"}
 pop <- population()
 hist(pop[,2], xlab="Baseline Rice Yield (t/ha)", 
      main="Baseline", cex=24)
@@ -65,14 +67,16 @@ potential_outcomes <-
 ### Potential outcomes descriptives
 ```{r po-see, echo=TRUE}
 po <- potential_outcomes(pop)
-kable(po[1:5,], digits=1)
+kable(po[1:5,], digits=1) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"))
 ```
 
 ### Declare sampling
 ```{r sample, echo=TRUE}
 sampling <- declare_sampling(n=500)
 sam <- sampling(po)
-kable(sam[1:5,c(1:2,4:6)], row.names = FALSE, digits = 1)
+kable(sam[1:5,c(1:2,4:6)], row.names = FALSE, digits = 1) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"))
 ```
 
 ### Declare Assignment
@@ -80,12 +84,13 @@ kable(sam[1:5,c(1:2,4:6)], row.names = FALSE, digits = 1)
 assigning <- declare_assignment(m = nrow(sam)*(3/4),
                   assignment_variable="D")
 assigned <- assigning(sam)
-kable(assigned[1:5,c(1:2,4:5,7:8)], digits = 1)
+kable(assigned[1:5,c(1:2,4:5,7:8)], digits = 1) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"))
 ```
 
 
 ### Assessing balance
-```{r violin, echo=FALSE, fig.height=6}
+```{r violin, echo=FALSE, out.width = "50%"}
 ggplot(data=assigned, aes(x=as.factor(D), y=yield)) +
 geom_violin(aes(fill=as.factor(D), color=as.factor(D))) +
 theme_minimal(base_size = 24) + xlab("Assignment")
@@ -127,18 +132,26 @@ kable1 <- diagnosis$diagnosands_df[,c(1,3,5,9,11)] %>%
   kable() %>% 
    kable_styling(bootstrap_options = c("striped", "hover"))
 
-save_kable(kable1, "kable_500.jpeg")
+# save_kable(kable1, "kable_500.jpeg")
 
-
+kable1
 ```
 
-### Changing sample size
-```{r sample2, echo=TRUE}
+### Changing sample size to 360
+```{r sample2, echo=TRUE, out.width = "50%"}
 sampling2 <- declare_sampling(n=360)
 sam2 <- sampling2(po)
 
 assigning2 <- declare_assignment(m = nrow(sam2)*(3/4),
                   assignment_variable="D")
+
+assigned2 <- assigning2(sam2)
+
+ggplot(data=assigned, aes(x=as.factor(D), y=yield)) +
+geom_violin(aes(fill=as.factor(D), color=as.factor(D))) +
+theme_minimal(base_size = 24) + xlab("Assignment")
+
+# dev.copy(png,'violin2.png')
 
 dim <- declare_estimator(Y ~ D, estimand = estimand,  
           model =  difference_in_means, label = "DIM")
@@ -155,61 +168,7 @@ kable2 <- diagnosis2$diagnosands_df[,c(1,3,5,9,11)] %>%
   kable() %>% 
    kable_styling(bootstrap_options = c("striped", "hover"))
 
-save_kable(kable2, "kable_360.jpeg")
-```
+# save_kable(kable2, "kable_360.jpeg")
 
-### Variance
-```{r, echo=FALSE}
-### variance of outcomes
-var(po$Y_D_1)
-mean(po$Y_D_1)
-sd(po$Y_D_1)
-
-```
-
-### Test statistic
-```{r, echo=FALSE}
-outcomes <- assigned %>%
-  mutate(dif = Y_D_1 - yield) %>% 
-  select(villages, dif, D)
-
-outcomes_aov <- aov(dif ~ D, data = outcomes)
-summary(outcomes_aov)
-cohen.d(sam$yield, sam$Y_D_1, paired = TRUE)
-
-po2 <- po %>%
-  select(villages, Y_D_0, Y_D_1) %>% 
-  mutate(dif = Y_D_1 - Y_D_0)
-  pivot_longer(cols = starts_with("Y_D"), names_to = "treatment",values_to="outcome") 
-
-```
-
-### What is the smallest treatment effect you can detect with sample size of 400
-```{r effsize, echo=TRUE}
-
-potential_outcomes2 <- 
-  declare_potential_outcomes(
-    Y_D_0= yield + u,
-    Y_D_1= yield + u - 0.165)
-
-po <- potential_outcomes2(pop)
-
-sampling3 <- declare_sampling(n=400)
-sam3 <- sampling3(po)
-
-assigning3 <- declare_assignment(m = nrow(sam3)*(3/4),
-                  assignment_variable="D")
-
-dim <- declare_estimator(Y ~ D, estimand = estimand,  
-          model =  difference_in_means, label = "DIM")
-
-did <- declare_estimator(Y - yield ~ D, estimand = estimand,  
-          model =  difference_in_means, label = "DID")
-
-design3 <- population + potential_outcomes2 + sampling3 +
-          assigning3 + revealing + estimand + dim + did
-
-diagnosis <- diagnose_design(design3, sims=1000)
-diagnosis$diagnosands_df[,c(1,3,5,9,11)] %>%
-  kable()
+kable2
 ```
