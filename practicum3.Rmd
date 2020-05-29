@@ -18,17 +18,16 @@ library(kableExtra)
 library(future.apply)
 library(tidyverse)
 library(effsize)
+
 ```
 
 ## Descriptives and outcomes
 
 • Population size = 1000
 
-• Initial sample size = 500
+• Initial sample size = 500 (Treatment = 375, Control = 125)
 
-• Treatment = 375
-
-• Control = 125
+• Final sample size = 360 (Treatment = 375, Control = 125)
 
 • baseline yield (tons/hectare) is random uniform [0.38, 8.21]
 
@@ -123,8 +122,14 @@ design <- population + potential_outcomes + sampling +
 ### Diagnose design
 ```{r diagnosis, cache=TRUE}
 diagnosis <- diagnose_design(design, sims=1000)
-diagnosis$diagnosands_df[,c(1,3,5,9,11)] %>%
-  kable()
+
+kable1 <- diagnosis$diagnosands_df[,c(1,3,5,9,11)] %>%
+  kable() %>% 
+   kable_styling(bootstrap_options = c("striped", "hover"))
+
+save_kable(kable1, "kable_500.jpeg")
+
+
 ```
 
 ### Changing sample size
@@ -144,9 +149,13 @@ did <- declare_estimator(Y - yield ~ D, estimand = estimand,
 design2 <- population + potential_outcomes + sampling2 +
           assigning2 + revealing + estimand + dim + did
 
-diagnosis <- diagnose_design(design2, sims=1000)
-diagnosis$diagnosands_df[,c(1,3,5,9,11)] %>%
-  kable()
+diagnosis2 <- diagnose_design(design2, sims=1000)
+
+kable2 <- diagnosis2$diagnosands_df[,c(1,3,5,9,11)] %>%
+  kable() %>% 
+   kable_styling(bootstrap_options = c("striped", "hover"))
+
+save_kable(kable2, "kable_360.jpeg")
 ```
 
 ### Variance
@@ -156,40 +165,23 @@ var(po$Y_D_1)
 mean(po$Y_D_1)
 sd(po$Y_D_1)
 
-var(sam$Y_D_1)
-mean(sam$Y_D_1)
-sd(sam$Y_D_1)
-
-var(sam2$Y_D_1)
-mean(sam2$Y_D_1)
-sd(sam2$Y_D_1)
 ```
 
 ### Test statistic
 ```{r, echo=FALSE}
-po1 <- po %>%
+outcomes <- assigned %>%
+  mutate(dif = Y_D_1 - yield) %>% 
+  select(villages, dif, D)
+
+outcomes_aov <- aov(dif ~ D, data = outcomes)
+summary(outcomes_aov)
+cohen.d(sam$yield, sam$Y_D_1, paired = TRUE)
+
+po2 <- po %>%
   select(villages, Y_D_0, Y_D_1) %>% 
-  pivot_longer(cols = starts_with("Y_D"), names_to = "treatment",values_to="outcome")
+  mutate(dif = Y_D_1 - Y_D_0)
+  pivot_longer(cols = starts_with("Y_D"), names_to = "treatment",values_to="outcome") 
 
-po_aov <- aov(outcome ~ treatment, data = po1)
-summary(po_aov)
-cohen.d(po$Y_D_0, po$Y_D_1, paired = TRUE)
-
-samp <- sam %>%
-  select(villages, Y_D_0, Y_D_1) %>% 
-  pivot_longer(cols = starts_with("Y_D"), names_to = "treatment",values_to="outcome")
-
-sam_aov <- aov(outcome ~ treatment, data = samp)
-summary(sam_aov)
-cohen.d(sam$Y_D_0, sam$Y_D_1, paired = TRUE)
-
-samp2 <- sam2 %>%
-  select(villages, Y_D_0, Y_D_1) %>% 
-  pivot_longer(cols = starts_with("Y_D"), names_to = "treatment",values_to="outcome")
-
-sam2_aov <- aov(outcome ~ treatment, data = samp2)
-summary(sam2_aov)
-cohen.d(sam2$Y_D_0, sam2$Y_D_1)
 ```
 
 ### What is the smallest treatment effect you can detect with sample size of 400
